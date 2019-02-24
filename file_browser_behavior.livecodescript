@@ -1,7 +1,6 @@
 script "File Browser DataView Tree Behavior" with behavior "DataView Tree Behavior"
 local sRootFolder
 
-
 /**
 Summary: Sets the root folder.
 
@@ -23,6 +22,68 @@ setProp dvRootFolder pFolder
 
   _displayFolderInDataView sRootFolder
 end dvRootFolder
+
+
+
+/**
+Summary: Returns the root folder.
+
+Description:
+The current root folder will be returned
+
+Example:
+get the dvRootFolder of group "FileBrowser"
+*/
+getProp dvRootFolder
+  return sRootFolder
+end dvRootFolder
+
+
+
+
+/**
+Summary: Sets whether all nodes are expanded when the list is drawn.
+
+Parameters:
+pBoolean: true means expand every node, false means collapse every node.
+
+Description:
+Property takes effect when the list is drawn.  Individual folders can be expanded or contracted with ToggleRow[pRow]
+
+*/
+setProp expandAllNodes pBoolean
+  if pBoolean is not in "true,false" then return "Error: expected 'true' or 'false'"
+
+  set the viewProp["expand all nodes"] of me to pBoolean
+  return empty
+end expandAllNodes
+
+
+
+/**
+Summary: Limits the display to files with the extensions specified.
+
+Parameters:
+pExtensionList: a comma-delimited list of allowed file extensions (suffixes).
+
+Description:
+Multiple extensions can be included in the list, separated by commas, with or without spaces
+
+Examples:
+set the allowedExtensions to ".pdf,.PDF"
+set the allowedExtensions to ".txt"
+set the allowedExtensions to "   .gif   , .gif,.jpg"
+set the allowedExtensions to ".*" # allows any extension
+set the allowedExtensions to empty #don't allow any extensions
+
+*/
+setProp allowedExtensions pList
+  put pList into tList
+  replace space with empty in tList
+  set the viewProp["allowed extensions"] of me to tList
+  return empty
+end allowedExtensions
+
 
 
 /**
@@ -72,7 +133,17 @@ private command _displayFolderInDataView pFolder
 
   put _createNodesForFolder(pFolder) into tNodesA
 
+  lock screen
   set the dvTree of me to tNodesA
+  
+  if the viewProp["expand all nodes"] of me then
+    put 1 into i
+    repeat until i> numberOfRows()
+      put getValueForKeyInRow(i,"is leaf") into isLeaf
+      if not isLeaf then toggleRow(i) #by default nodes are not expanded, so expand them
+      add 1 to i
+    end repeat
+  end if #the viewProp["expand all nodes"] of me
 end _displayFolderInDataView
 
 
@@ -131,7 +202,16 @@ private function _getFilesInFolder pFolder
   local tFiles
 
   put files(pFolder) into tFiles
-  filter tFiles without ".*"
+  filter tFiles without ".*" # i.e. remove anything beginning with a dot
+  #<apply any extensions filter specified by the user>
+    put the viewProp["allowed extensions"] of me into tAllowedExtensions
+    if tAllowedExtensions is not "*" then
+      replace comma with "|" in tAllowedExtensions
+      #fix for empty     if tAllowedExtensions is empty then put "!." into tAllowedExtensionsRegEx
+      put "("&tAllowedExtensions&")$" into tAllowedExtensionsRegEx # e.g. (.pdf|.PDF)$  That means any string terminating with .pdf or .PDF
+      filter tFiles with regex tAllowedExtensionsRegEx
+    end if #tAllowedExtensions is not "*"
+  #</apply any extensions filter specified by the user>
   sort tFiles
   return tFiles
 end _getFilesInFolder
